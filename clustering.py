@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import seaborn as sns
+
 #import ML support libraries
 
 from sklearn.cross_validation import train_test_split
@@ -7,6 +9,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import f1_score
 from sklearn.model_selection import KFold
 from sklearn.metrics import accuracy_score
+from sklearn.cluster import KMeans
 
 def loadData(datafile):
         with open(datafile,'r', encoding="Latin-1") as csvfile:
@@ -78,7 +81,36 @@ def determineK(dataset, prediction, ignore, k_vals):
 
     print("Best k, accuracy = " + str(best_k) + ", " + str(best_accuracy))
 
+def runKMeans(dataset, ignore, n):
+    # Set up the dataset
+    X = dataset.drop(columns=ignore)
 
+    #Run KMeans
+    kmeans = KMeans(n_clusters=n)
+
+    #Train the model
+    kmeans.fit(X)
+
+    # Add preds to dataframe
+    dataset['cluster'] = pd.Series(kmeans.predict(X), index = dataset.index)
+    #Scatterplot matrix
+    #scatterMatrix = sns.pairplot(dataset.drop(columns=ignore), hue='cluster', palette="Set2")
+    #scatterMatrix.savefig("kmeanClusters.png")
+
+    return kmeans
+
+def findClusterK(dataset, ignore):
+    mean_distances = {}
+    X = dataset.drop(columns=ignore)
+    for n in np.arange(4,12):
+        model = runKMeans(dataset, ignore, n) #run the model
+        #Adapted from: https://datascience.stackexchange.com/a/41125
+        #use .transform() to get the distances of the points from all clusters. Then use list comprehension to get the min of
+        #those distances for each point to get the distance from the cluster the point belongs to. Take the mean of that list to get
+        #average distance.
+        mean_distances[n] = np.mean([np.min(x) for x in model.transform(X)])
+
+    print("Best k by average distance: " + str(min(mean_distances, key=mean_distances.get)))
 
 nbaData = loadData("nba_2013_clean.csv")
 knnModel= runKNN(nbaData, "pos", "player", 5)
@@ -88,5 +120,8 @@ for k in [5,7,10]:
     kNNCrossfold(nbaData,"pos", "player", k)
 
 determineK(nbaData,"pos", "player", [5,7,10])
+kmeansModel = runKMeans(nbaData, ['pos', 'player'], 5)
+findClusterK(nbaData, ['pos', 'player'])
+
 #Problem 2
 # The classifier has about a 50% chance of predicting a player's position correctly. This is an okay-performing model. It shouldn't be used to make crucial decisions.abs
